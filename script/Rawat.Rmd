@@ -1,0 +1,529 @@
+---
+title: "Homework 3"
+author: "M. Rawat"
+date: "November 30, 2017"
+output: html_document
+---
+
+***
+
+# Part A
+
+***
+
+# Importing the dataset
+
+```{r}
+library(readr)
+crash <- read_csv("../data/crash.csv")
+```
+
+***
+
+# Data Creation
+
+### Region Variable
+
+```{r}
+# Creating the Region Variable
+crash$Region<-ifelse(crash$State=='Illinois'|crash$State=='Indiana'|crash$State=='Michigan'|crash$State=='Ohio'|crash$State=='Wisconsin'|crash$State=='Iowa'|crash$State=='Kansas'|crash$State=='Minnesota'|crash$State=='Missouri'|crash$State=='Nebraska'|crash$State=='North Dakota'|crash$State=='South Dakota', 'Midwest',
+                     
+              ifelse(crash$State=='Connecticut'|crash$State=='Maine'|crash$State=='Massachusetts'|crash$State=='New Hampshire'|crash$State=='Rhode Island'|crash$State=='Vermont'|crash$State=='New Jersey'|crash$State=='New York'|crash$State=='Pennsylvania', 'Northeast',
+                     
+              ifelse(crash$State=='Delaware'|crash$State=='Florida'|crash$State=='Georgia'|crash$State=='Maryland'|crash$State=='North Carolina'|crash$State=='South Carolina'|crash$State=='Virginia'|crash$State=='District of Columbia'|crash$State=='West Virginia'|crash$State=='Alabama'|crash$State=='Kentucky'|crash$State=='Mississippi'|crash$State=='Tennessee'|crash$State=='Arkansas'|crash$State=='Louisiana'|crash$State=='Oklahoma'|crash$State=='Texas', 'South',
+                     
+              ifelse(crash$State=='Arizona'|crash$State=='Colorado'|crash$State=='Idaho'|crash$State=='Montana'|crash$State=='Nevada'|crash$State=='New Mexico'|crash$State=='Utah'|crash$State=='Wyoming'|crash$State=='Alaska'|crash$State=='California'|crash$State=='Hawaii'|crash$State=='Oregon'|crash$State=='Washington', 'West', 'Unclassified')
+                            )))
+
+# Checking Region variable created correctly
+crash$Region<-as.factor(crash$Region)
+summary(crash$Region)
+# Result: Nothing was labelled as 'Unclassified' therefore everything was captured
+```
+
+***
+
+# Data Preparation
+
+### Roadway Type
+
+```{r}
+## Roadway Type
+  
+# Loading the package needed to use the separate function
+library(tidyverse)
+
+# Breaking down Roadway Variable into Roadway Type and Roadway Description by splitting the strings at the dash marker
+crash_formatted<-crash %>% separate(Roadway, into = c("Roadway_Type", "Roadway_Description_1", 'Roadway_Description_2'), sep = "\\-", fill="right", extra="merge", remove=TRUE)
+
+# Outputting the formatted variables to confirm split
+head(crash_formatted[5:7])
+
+# Changing the new variables into factors so they can be summarized
+crash_formatted$Roadway_Type<-as.factor(crash_formatted$Roadway_Type)
+crash_formatted$Roadway_Description_1<-as.factor(crash_formatted$Roadway_Description_1)
+crash_formatted$Roadway_Description_2<-as.factor(crash_formatted$Roadway_Description_2)
+
+# Summarizing the new variables
+summary(crash_formatted[5:7])
+
+# Removing the \\N error by changing these fields to Unknown
+crash_formatted$Roadway_Type[crash_formatted$Roadway_Type == '\\N'] <- 'Unknown'
+
+# Re-factoring the variable to drop the unused level
+crash_formatted$Roadway_Type<-as.character(crash_formatted$Roadway_Type)
+crash_formatted$Roadway_Type<-as.factor(crash_formatted$Roadway_Type)
+
+# Check the reformatting was successful
+summary(crash_formatted$Roadway_Type)
+
+# Dropping the 3 Unknown Records
+crash_formatted<-subset(crash_formatted, Roadway_Type!="Unknown")
+
+# Re-factoring the variable to drop the unused level
+crash_formatted$Roadway_Type<-as.character(crash_formatted$Roadway_Type)
+crash_formatted$Roadway_Type<-as.factor(crash_formatted$Roadway_Type)
+
+# Check the reformatting was successful
+summary(crash_formatted$Roadway_Type)
+```
+
+### Drug Involvement
+
+```{r}
+# Reformatting the drug involvement variable such that '\\N' and 'Not Reported' and 'Unknown' fall under the same category - 'Unknown'
+crash_formatted$`Drug Involvement`[crash_formatted$`Drug Involvement` == '\\N'] <- 'Unknown'
+crash_formatted$`Drug Involvement`[crash_formatted$`Drug Involvement` == 'Not Reported'] <- 'Unknown'
+
+# Re-factoring the variable to drop the unused levels
+crash_formatted$`Drug Involvement`<-as.character(crash_formatted$`Drug Involvement`)
+crash_formatted$`Drug Involvement`<-as.factor(crash_formatted$`Drug Involvement`)
+
+# Check the reformatting was successful
+summary(crash_formatted$`Drug Involvement`)
+```
+
+### Gender
+
+```{r}
+# Reformatting the gender variable such that 'Not Reported' and 'Unknown' fall under the same category - 'Unknown'
+crash_formatted$Gender[crash_formatted$Gender == 'Not Reported'] <- 'Unknown'
+
+# Re-factoring the variable to drop the unused levels
+crash_formatted$Gender<-as.character(crash_formatted$Gender)
+crash_formatted$Gender<-as.factor(crash_formatted$Gender)
+
+# Check the reformatting was successful
+summary(crash_formatted$Gender)
+
+# Dropping the 51 Unknown Records
+crash_formatted<-subset(crash_formatted, Gender!="Unknown")
+
+# Re-factoring the variable to drop the unused levels
+crash_formatted$Gender<-as.character(crash_formatted$Gender)
+crash_formatted$Gender<-as.factor(crash_formatted$Gender)
+
+# Check the reformatting was successful
+summary(crash_formatted$Gender)
+```
+
+### Age
+
+```{r}
+# Setting Age of 0 to be a missing value
+crash_formatted$Age[crash_formatted$Age == 0]<-NA
+
+# Calculating the average age for each person type
+aggregate(data=crash_formatted, Age~`Person Type`, mean, na.rm=TRUE)
+
+# Creating average age per person type vector
+ave_age<-ave(crash_formatted$Age, crash_formatted$`Person Type`, FUN=function(x) mean(x, na.rm=TRUE))
+
+# Impute the means onto missing values
+crash_formatted$Age<-ifelse(is.na(crash_formatted$Age), ave_age, crash_formatted$Age)
+
+# Removing NaN observation
+crash_formatted<-crash_formatted[complete.cases(crash_formatted$Age), ]
+
+# Confirm that all missing values in the age variable have now been filled
+summary(crash_formatted$Age)
+```
+
+### Alcohol Content
+
+```{r}
+# Changing structure of Alcohol Results to numeric
+crash_formatted$`Alcohol Results`<-as.numeric(crash_formatted$`Alcohol Results`)
+
+# Calculating the average alcohol content for each person type
+aggregate(data=crash_formatted, `Alcohol Results`~`Person Type`+Gender, mean, na.rm=TRUE)
+
+# Creating average age per alcohol content per person type and Gender vector
+ave_alcohol<-ave(crash_formatted$`Alcohol Results`, crash_formatted$`Person Type`, crash_formatted$Gender, FUN=function(x) mean(x, na.rm=TRUE))
+
+# Impute the means onto missing values
+crash_formatted$`Alcohol Results`<-ifelse(is.na(crash_formatted$`Alcohol Results`), ave_alcohol, crash_formatted$`Alcohol Results`)
+
+# Removing NaN observation
+crash_formatted<-crash_formatted[complete.cases(crash_formatted$`Alcohol Results`), ]
+
+# Confirm that all missing values in the age variable have now been filled
+summary(crash_formatted$`Alcohol Results`)
+```
+
+### Changing Variable Types
+
+```{r}
+crash_formatted$State<-as.factor(crash_formatted$State)
+crash_formatted$`Atmospheric Condition`<-as.factor(crash_formatted$`Atmospheric Condition`)
+crash_formatted$`Person Type`<-as.factor(crash_formatted$`Person Type`)
+crash_formatted$`Injury Severity`<-as.factor(crash_formatted$`Injury Severity`)
+crash_formatted$Race<-as.factor(crash_formatted$Race)
+```
+
+### Removing Variables
+
+```{r}
+# Checking varibles in dataset
+str(crash_formatted)
+
+# Dropping the Date, Fatalities, Race and Year Variables
+crash_formatted<-crash_formatted[,c(-1,-3,-4,-6,-7,-12,-15,-16,-17,-18)]
+crash_formatted<-as.data.frame(crash_formatted)
+```
+
+***
+
+# Exploratory Data Analysis
+
+### Gender
+
+```{r}
+library(ggplot2)
+
+# Creating frequency for Gender
+Frequency_Gender<-data.frame(table(crash_formatted$Gender))
+
+# Labeling the columns
+colnames(Frequency_Gender)<-c("Gender","Frequency")
+
+# Ordering the Frequency table from highest occurence to lowest
+Frequency_Gender<-Frequency_Gender[order(-Frequency_Gender$Frequency),]
+
+# Outputting the ordered frequency table
+Frequency_Gender
+
+# Frequency Chart
+Plot_1<-ggplot(data=Frequency_Gender,aes(x=Gender, y=Frequency, fill=Frequency))+
+  geom_bar(width=1,stat="identity")+
+  theme(axis.text=element_text(size=12,angle=90),axis.title=element_text(size=14))+
+  ggtitle('Graph showing Frequency of Individuals involved in Accidents by Gender')
+Plot_1
+
+# Calculating the Percentage of Data set that captured by the top category
+(Frequency_Gender[1,2]/sum(Frequency_Gender$Frequency))*100
+# Result: 65.29% of the data set are records for Males
+
+# Calculating the Percentage of Data set that captured by Females
+(sum(Frequency_Gender[2,2])/sum(Frequency_Gender$Frequency))*100
+# Result: 33.68% of the data set are records for Females
+```
+
+### Region
+
+```{r}
+# Creating Frequency table for Region
+Frequency_Region<-data.frame(table(crash_formatted$Region))
+
+# Labeling the columns
+colnames(Frequency_Region)<-c("Region","Frequency")
+
+# Ordering the Frequency table from highest occurence to lowest
+Frequency_Region<-Frequency_Region[order(-Frequency_Region$Frequency),]
+
+# Outputting the ordered frequency table
+Frequency_Region
+
+# Frequency Chart
+library(ggplot2)
+Plot_1<-ggplot(data=Frequency_Region,aes(x=Region, y=Frequency, fill=Frequency))+
+  geom_bar(width=1,stat="identity")+
+  theme(axis.text=element_text(size=12,angle=90),axis.title=element_text(size=14))+
+  ggtitle('Graph showing Frequency of Individuals involved in Accidents by Region')
+Plot_1
+
+# Calculating the Percentage of Data set that captured by the top category
+(Frequency_Region[1,2]/sum(Frequency_Region$Frequency))*100
+# Result: 32.53% of the data set are records for the Southern Region
+
+# Calculating the Percentage of Data set that captured by the bottom category
+(Frequency_Region[4,2]/sum(Frequency_Region$Frequency))*100
+# Result: 15.64% of the data set are records for the Northeast Region
+```
+
+### Atmospheric Conditions
+
+```{r}
+# Creating frequency table for Atmospheric Condition
+Frequency_Atmospheric_Condition<-data.frame(table(crash_formatted$`Atmospheric Condition`))
+
+# Labeling the columns
+colnames(Frequency_Atmospheric_Condition)<-c("Atmospheric Condition", "Frequency")
+
+# Ordering the Frequency table from highest occurence to lowest
+Frequency_Atmospheric_Condition<-Frequency_Atmospheric_Condition[order(-Frequency_Atmospheric_Condition$Frequency),]
+
+# Outputting the ordered frequency table
+Frequency_Atmospheric_Condition
+
+# Frequency Chart
+Plot_2<-ggplot(data=Frequency_Atmospheric_Condition,aes(x=`Atmospheric Condition`, y=Frequency, fill=Frequency))+
+  geom_bar(width=1,stat="identity")+
+  theme(axis.text=element_text(size=12,angle=90),axis.title=element_text(size=14))+
+  ggtitle('Graph showing Frequency of Individuals involved in Accidents Weather')
+Plot_2
+
+# Calculating the Percentage of Data set that captured by the top category
+(Frequency_Atmospheric_Condition[1,2]/sum(Frequency_Atmospheric_Condition$Frequency))*100
+# Result: 64.41% of the data set are records for Clear Conditions
+
+# Calculating the Percentage of Data set that captured by the third category
+(Frequency_Region[4,2]/sum(Frequency_Region$Frequency))*100
+# Result: 15.72% of the data set are records for Rainy Conditions
+```
+
+***
+
+# Clustering
+
+### K-Prototype Method
+
+```{r}
+library(clustMixType)
+
+# Elbow Method for finding the optimal number of clusters
+set.seed(123)
+# Compute and plot wss for k = 2 to k = 15.
+k.max <- 8
+wss <- sapply(1:k.max, 
+ function(k){kproto(crash_formatted, k)$tot.withinss})
+wss
+plot(1:k.max, wss,
+ type="b", pch = 19, frame = FALSE, 
+ xlab="Number of clusters K",
+ ylab="Total within-clusters sum of squares")
+```
+
+```{r}
+set.seed(123)
+
+# Running K-Prototype (k=3)
+crash_kprototype <- kproto(crash_formatted, k=3)
+
+# Summarizing K-Prototype Model
+summary(crash_kprototype)
+```
+
+```{r}
+set.seed(123)
+
+# Running K-Prototype (k=4)
+crash_kprototype <- kproto(crash_formatted, k=4)
+
+# Summarizing K-Prototype Model
+summary(crash_kprototype)
+
+# Assigning cluster ID back to each record.
+# crash_formatted$cluster<-crash_kprototype$cluster
+```
+
+***
+
+# Part B
+
+***
+
+# Importing Data Set
+
+```{r}
+library(readr)
+Universities<-read_csv("../data/Universities.csv")
+```
+
+# Exploratory Data Analysis
+
+### Observing Dimensions of Data Set
+
+```{r}
+dim(Universities)
+# Result: The data set contains 1302 observations across 20 variables
+```
+
+### Checking the Data Types within the Data Set
+
+```{r}
+str(Universities)
+# Result: Majority of variables are integers, there are 2 character variables and 1 numeric variable
+```
+
+***
+
+# Formattting the Data
+
+### Removing Character Variables
+
+```{r}
+universities_formatted<-Universities[,c(-1,-2)]
+# Result: College Name and State are removed
+```
+
+### Checking the Data Types within the Formatted Data Set
+
+```{r}
+str(universities_formatted)
+# Result: No character variables are present
+```
+
+### Checking Formatted Data Set for missing records
+
+```{r}
+summary(universities_formatted)
+# Result: ... Missing Records across the entire data set
+```
+
+### Removing Missing Records
+
+```{r}
+universities_formatted<-na.omit(universities_formatted)
+```
+
+### Re-checking for Missing Records
+
+```{r}
+summary(universities_formatted)
+# Result: 0 Missing Records across the entire data set
+```
+
+### Observing Dimensions of Formatted Data Set
+
+```{r}
+dim(universities_formatted)
+# Result: The data set contains 471 observations across 18 variables
+# Note: Through removing missing values instead of undergoing imputation, 831 observations were removed (~64% of original set)
+```
+
+***
+
+# Principal Component Analysis (PCA)
+
+### Turning off Scientific Notation
+
+```{r}
+options(scipen = 999)
+```
+
+### Conducting PCA
+
+```{r}
+principal_component_analysis<-prcomp(universities_formatted)
+```
+
+### Summary of PCA
+
+```{r}
+summary(principal_component_analysis)
+# Result: There are 18 principal components because there are 18 variables
+# Result: Principal Component 1 accounts for 56.14% of the variation, Principal Component 2 accounts for 36.45% of the varation etc.
+```
+
+### Bar Chart showing Principal Components accounting for Variance
+
+```{r}
+principal_components_variance<-(principal_component_analysis$sdev^2 / sum(principal_component_analysis$sdev^2))*100
+barplot(principal_components_variance, las=2, xlab="Principal Component", ylab="% Variance Explained", main="Principal Components versus Percent of Variance Explained")
+```
+
+### Scree Plot to determine Optimal Principal Components
+
+```{r}
+screeplot(principal_component_analysis, type="line")
+# Result: Elbow located at 3 principal components
+```
+
+### Observing Loading Weights for PCA
+
+```{r}
+principal_component_analysis$rotation
+# Result: PC1 = Positive(In-State Tuition, Out-of-State Tuition), Negative(FT Undergrad, Application Recieved)
+# Result: PC2 = Positive(None), Negative(Application Recieved, Full-time Undergrad, Out-of-State Tuition)
+# Result: PC3 = Positive(Application Recieved, Application Accepted), Negative(FT Undergrad, PT Undergrad)
+```
+
+### Checking Ranges for Each Variable
+
+```{r}
+library(psych)
+describe(universities_formatted)
+# Result: The ranges vary drastically
+# Result: Variables with the largest range include: Application Recieved, FT Undergrad, Application Accepted, PT Undergrad, In-State Tuition and Out-of-State Tuition
+# Note: All of these variables were present as large loading weights for the first 3 principal components, this is evidence to suggest data needs to be normalized
+```
+
+### Conducting PCA with Z-Normalized Data Set
+
+```{r}
+principal_component_analysis_normalized<-prcomp(universities_formatted, scale. = T)
+```
+
+### Summarizing PCA with Z-Normalized Data Set
+
+```{r}
+summary(principal_component_analysis_normalized)
+# Result: There are 18 principal components because there are 18 variables
+# Result: Principal Component 1 accounts for 31.07% of the variation, Principal Component 2 accounts for 26.61% of the varation etc.
+```
+
+### Bar Chart showing Principal Components accounting for Variance
+
+```{r}
+principal_components_variance_normalized<-(principal_component_analysis_normalized$sdev^2 / sum(principal_component_analysis_normalized$sdev^2))*100
+barplot(principal_components_variance_normalized, las=2, xlab="Principal Component", ylab="% Variance Explained", main="Principal Components versus Percent of Variance Explained")
+```
+
+### Scree Plot to determine Optimal Principal Components
+
+```{r}
+screeplot(principal_component_analysis_normalized, type="line")
+# Result: Elbow located at 3 principal components
+```
+
+### Observing Loading Weights for PCA
+
+```{r}
+principal_component_analysis_normalized$rotation
+# Result: PC1 = Positive(Student/Faculty Ratio, FT Undergrad), Negative(In-State Tuition, Out-of-State Tuition)
+# Interpretation = Schools with a High Student to faculty ratio and high full time undergrad population, with low out-of state tuition and low in-state tuition
+# Classification = Community Colleges
+
+# Result: PC2 = Positive(Application Recieved, Application Accepted, New Students Enrolled, FT Undergrad), Negative(None)
+# Intepretation = Schools with a high number of applications recieved and accepted with a high new of new students enrolled and full time undergraduates
+# Classification = State Colleges 
+
+# Result: PC3 = Positive(Estimated Book Costs, Estimated Personal $), Negative(Additional Fees, % Faculty with PHD)
+# Interpretation = Schools with a high cost of books and high personal wealth, with a low number of additional fees and low percentage of faculty with PHDs and low graduation rate
+# Classification = Specialized Programs (Trade Schools)
+
+# Result: PC4 = Positive(Additional Fees, Room), Negative(Estimated Personal $, % New Student from Top 25%, % New Student from top 10%)
+# Interpretation = Schools with high additional fees and room, with a low personal wealth and low academic achievement
+# Classification = Two Year Junior Colleges
+
+# Result: PC5 = Positive(PT Undergrad, Board), Negative(Estimated Book Costs, Additional Fees)
+# Interpretation = Schools with a high number of part-time undergraduates and high boarding cost, but low estimated book costs and additional fees
+# Classification = Non-traditional Colleges
+
+# Result: PC6 = Positive(Student/Faculty Ratio, Estimated Book Costs), Negative(Estimated Personal $, Additional Fees)
+# Interpretation = Schools with a high student/faculty ratio and estimated book costs, but a low estimated personal wealth and additional fees
+# Classification = Community Colleges
+```
+
+***
